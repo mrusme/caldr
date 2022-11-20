@@ -7,7 +7,10 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
+	"strings"
 	"text/template"
+	"time"
 
 	"github.com/araddon/dateparse"
 	"github.com/emersion/go-ical"
@@ -79,7 +82,7 @@ func main() {
 
 	flag.Parse()
 
-	// args := flag.Args()
+	args := flag.Args()
 
 	db, err := store.Open(caldrDb)
 	if err != nil {
@@ -116,33 +119,62 @@ func main() {
 	if len(caldrTmpl) > 0 && outputJson == false {
 		t = template.Must(template.New("caldr").Funcs(template.FuncMap{
 			"GetSummary": func(ic ical.Event) string {
-				return ic.Props.Get(ical.PropSummary).Value
+				return GetPropValueSafe(&ic, ical.PropSummary)
 			},
 			"GetDescription": func(ic ical.Event) string {
-				return ic.Props.Get(ical.PropDescription).Value
+				rplcr := strings.NewReplacer("\\n", "\n", "\\,", ",")
+				return rplcr.Replace(
+					GetPropValueSafe(&ic, ical.PropDescription),
+				)
 			},
 			"GetDateTimeStart": func(ic ical.Event, frmt string) string {
-				val := ic.Props.Get(ical.PropDateTimeStart).Value
-				return ParseDateTime(val, frmt)
+				val := GetPropValueSafe(&ic, ical.PropDateTimeStart)
+				return ParseDateTime(val).Format(frmt)
 			},
 			"GetDateTimeEnd": func(ic ical.Event, frmt string) string {
-				val := ic.Props.Get(ical.PropDateTimeEnd).Value
-				return ParseDateTime(val, frmt)
+				val := GetPropValueSafe(&ic, ical.PropDateTimeEnd)
+				return ParseDateTime(val).Format(frmt)
 			},
 			"GetDateTimeStamp": func(ic ical.Event, frmt string) string {
-				val := ic.Props.Get(ical.PropDateTimeStamp).Value
-				return ParseDateTime(val, frmt)
-			},
-			"GetTimezone": func(ic ical.Event) string {
-				return ic.Props.Get(ical.PropTimezoneID).Value
+				val := GetPropValueSafe(&ic, ical.PropDateTimeStamp)
+				return ParseDateTime(val).Format(frmt)
 			},
 			"GetURL": func(ic ical.Event) string {
-				return ic.Props.Get(ical.PropURL).Value
+				return GetPropValueSafe(&ic, ical.PropURL)
 			},
 		}).ParseFiles(caldrTmpl))
 	}
 
-	// var today time.Time = time.Now()
+	var today time.Time = time.Now()
+	var displayDate time.Time
+
+	if len(args) > 0 {
+		switch strings.ToLower(args[0]) {
+		case "today":
+			displayDate = today
+		case "tomorrow":
+			displayDate = today.AddDate(0, 0, 1)
+		case "in":
+			if len(args) == 3 {
+				i, err := strconv.Atoi(args[1])
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+
+				switch strings.ToLower(args[2]) {
+				case "day", "days":
+					displayDate = today.AddDate(0, 0, i)
+				case "week", "weeks":
+					displayDate = today.AddDate(0, 0, i*7)
+				case "month", "months":
+					displayDate = today.AddDate(0, i, 0)
+				case "year", "years":
+					displayDate = today.AddDate(i, 0, 0)
+				}
+			}
+		}
+	}
 
 	foundIcs, err := db.List()
 	if err != nil {
@@ -151,6 +183,16 @@ func main() {
 	}
 
 	for _, ic := range foundIcs {
+		if !displayDate.IsZero() {
+			val := GetPropValueSafe(&ic, ical.PropDateTimeStart)
+			dt := ParseDateTime(val)
+
+			if !dt.Truncate(24 * time.Hour).
+				Equal(displayDate.Truncate(24 * time.Hour)) {
+				continue
+			}
+		}
+
 		if outputJson == true {
 			b, err := json.MarshalIndent(ic, "", "  ")
 			if err != nil {
@@ -175,7 +217,15 @@ func main() {
 	os.Exit(0)
 }
 
-func ParseDateTime(val string, frmt string) string {
+func GetPropValueSafe(ic *ical.Event, propName string) string {
+	prop := ic.Props.Get(propName)
+	if prop == nil {
+		return ""
+	}
+	return prop.Value
+}
+
+func ParseDateTime(val string) time.Time {
 	// Quick fix because PRs to dateparse are pointless:
 	// https://github.com/araddon/dateparse/pulls?q=is%3Aopen+is%3Apr
 	dtf := regexp.MustCompile(
@@ -183,7 +233,7 @@ func ParseDateTime(val string, frmt string) string {
 	val = dtf.ReplaceAllString(val, "$1-$2-$3 $4:$5:$6")
 
 	if dt, err := dateparse.ParseAny(val); err == nil {
-		return dt.Format(frmt)
+		return dt
 	}
-	return val
+	return time.Time{}
 }
