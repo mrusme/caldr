@@ -1,5 +1,5 @@
-{{ range $event := . }}
+{{- range $event := . -}}
 {{ $event.StartsAt.Format "2006-01-02 15:04" }}: {{ $event.Name }}
-{{ $event.Description }}
-{{ end }}
+{{ if $event.Description }}> {{ $event.Description }}{{ end }}
+{{- end -}}
 

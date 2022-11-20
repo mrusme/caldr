@@ -68,14 +68,19 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 				if recurrence != "" {
 					rr, err := rrule.StrToRRule(recurrence)
 					if err == nil {
-						rr.Until(time.Now().AddDate(1, 0, 0))
+						rr.DTStart(ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeStart)))
+						rr.Until(endT)
 						for _, t := range rr.All() {
 							if t.After(startT) && t.Before(endT) {
 								calEvents = append(calEvents, CalEvent{
-									Name:        GetPropValueSafe(&ic, ical.PropSummary),
-									Description: GetPropValueSafe(&ic, ical.PropDescription),
-									StartsAt:    t,
-									EndsAt:      ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeEnd)),
+									Name: GetPropValueSafe(&ic, ical.PropSummary),
+									Description: appendNewLine(
+										GetPropValueSafe(&ic, ical.PropDescription),
+									),
+									StartsAt: t,
+									EndsAt: ParseDateTime(
+										GetPropValueSafe(&ic, ical.PropDateTimeEnd),
+									),
 								})
 							}
 						}
@@ -85,10 +90,14 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 
 					if t.After(startT) && t.Before(endT) {
 						calEvents = append(calEvents, CalEvent{
-							Name:        GetPropValueSafe(&ic, ical.PropSummary),
-							Description: GetPropValueSafe(&ic, ical.PropDescription),
-							StartsAt:    t,
-							EndsAt:      ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeEnd)),
+							Name: GetPropValueSafe(&ic, ical.PropSummary),
+							Description: appendNewLine(
+								GetPropValueSafe(&ic, ical.PropDescription),
+							),
+							StartsAt: t,
+							EndsAt: ParseDateTime(
+								GetPropValueSafe(&ic, ical.PropDateTimeEnd),
+							),
 						})
 					}
 				}
@@ -120,4 +129,12 @@ func ParseDateTime(val string) time.Time {
 		return dt
 	}
 	return time.Time{}
+}
+
+func appendNewLine(s string) string {
+	str := s
+	if s != "" && s[len(s)-1] != '\n' {
+		str = s + "\n"
+	}
+	return str
 }
