@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
-	"github.com/araddon/dateparse"
-	"github.com/emersion/go-ical"
 	"github.com/mrusme/caldr/dav"
 	"github.com/mrusme/caldr/store"
 )
@@ -117,43 +115,60 @@ func main() {
 
 	var t *template.Template
 	if len(caldrTmpl) > 0 && outputJson == false {
-		t = template.Must(template.New("caldr").Funcs(template.FuncMap{
-			"GetSummary": func(ic ical.Event) string {
-				return GetPropValueSafe(&ic, ical.PropSummary)
-			},
-			"GetDescription": func(ic ical.Event) string {
-				rplcr := strings.NewReplacer("\\n", "\n", "\\,", ",")
-				return rplcr.Replace(
-					GetPropValueSafe(&ic, ical.PropDescription),
-				)
-			},
-			"GetDateTimeStart": func(ic ical.Event, frmt string) string {
-				val := GetPropValueSafe(&ic, ical.PropDateTimeStart)
-				return ParseDateTime(val).Format(frmt)
-			},
-			"GetDateTimeEnd": func(ic ical.Event, frmt string) string {
-				val := GetPropValueSafe(&ic, ical.PropDateTimeEnd)
-				return ParseDateTime(val).Format(frmt)
-			},
-			"GetDateTimeStamp": func(ic ical.Event, frmt string) string {
-				val := GetPropValueSafe(&ic, ical.PropDateTimeStamp)
-				return ParseDateTime(val).Format(frmt)
-			},
-			"GetURL": func(ic ical.Event) string {
-				return GetPropValueSafe(&ic, ical.PropURL)
-			},
-		}).ParseFiles(caldrTmpl))
+		t = template.Must(template.New("caldr").Funcs(template.FuncMap{}).ParseFiles(caldrTmpl))
 	}
 
+	sT, eT, err := getStartEndByArgs(args)
+	if err != nil {
+		fmt.Printf("%s\n", err)
+		os.Exit(1)
+	}
+
+	calEvents, err := db.List(sT, eT)
+	if err != nil {
+		fmt.Printf("%s\n", err)
+		os.Exit(1)
+	}
+
+	sort.Slice(calEvents, func(i, j int) bool {
+		return calEvents[i].StartsAt.Before(calEvents[j].StartsAt)
+	})
+
+	if outputJson == true {
+		b, err := json.MarshalIndent(calEvents, "", "  ")
+		if err != nil {
+			fmt.Printf("%s\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf(string(b))
+	} else {
+		if len(caldrTmpl) > 0 {
+			err := t.ExecuteTemplate(os.Stdout, path.Base(caldrTmpl), calEvents)
+			if err != nil {
+				fmt.Printf("%s\n", err)
+				os.Exit(1)
+			}
+		} else {
+			// fmt.Printf("%+v\n", ic.Props.Get(ical.PropSummary).Value)
+		}
+	}
+
+	os.Exit(0)
+}
+
+func getStartEndByArgs(args []string) (time.Time, time.Time, error) {
 	var today time.Time = time.Now()
-	var displayDate time.Time
+
+	var sT time.Time
+	var eT time.Time
 
 	if len(args) > 0 {
 		switch strings.ToLower(args[0]) {
 		case "today":
-			displayDate = today
+			sT, eT = getStartEndForDate(today)
 		case "tomorrow":
-			displayDate = today.AddDate(0, 0, 1)
+			sT, eT = getStartEndForDate(today.AddDate(0, 0, 1))
 		case "in":
 			if len(args) == 3 {
 				i, err := strconv.Atoi(args[1])
@@ -164,76 +179,29 @@ func main() {
 
 				switch strings.ToLower(args[2]) {
 				case "day", "days":
-					displayDate = today.AddDate(0, 0, i)
+					sT, eT = getStartEndForDate(today.AddDate(0, 0, i))
 				case "week", "weeks":
-					displayDate = today.AddDate(0, 0, i*7)
+					sT, eT = getStartEndForDate(today.AddDate(0, 0, i*7))
 				case "month", "months":
-					displayDate = today.AddDate(0, i, 0)
+					sT, eT = getStartEndForDate(today.AddDate(0, i, 0))
 				case "year", "years":
-					displayDate = today.AddDate(i, 0, 0)
+					sT, eT = getStartEndForDate(today.AddDate(i, 0, 0))
 				}
 			}
 		}
+	} else {
+		sT = today
+		eT = today.AddDate(0, 3, 0)
 	}
 
-	foundIcs, err := db.List()
-	if err != nil {
-		fmt.Printf("%s\n", err)
-		os.Exit(1)
-	}
+	return sT, eT, nil
 
-	for _, ic := range foundIcs {
-		if !displayDate.IsZero() {
-			val := GetPropValueSafe(&ic, ical.PropDateTimeStart)
-			dt := ParseDateTime(val)
-
-			if !dt.Truncate(24 * time.Hour).
-				Equal(displayDate.Truncate(24 * time.Hour)) {
-				continue
-			}
-		}
-
-		if outputJson == true {
-			b, err := json.MarshalIndent(ic, "", "  ")
-			if err != nil {
-				fmt.Printf("%s\n", err)
-				os.Exit(1)
-			}
-
-			fmt.Printf(string(b))
-		} else {
-			if len(caldrTmpl) > 0 {
-				err := t.ExecuteTemplate(os.Stdout, path.Base(caldrTmpl), ic)
-				if err != nil {
-					fmt.Printf("%s\n", err)
-					os.Exit(1)
-				}
-			} else {
-				fmt.Printf("%+v\n", ic.Props.Get(ical.PropSummary).Value)
-			}
-		}
-	}
-
-	os.Exit(0)
 }
 
-func GetPropValueSafe(ic *ical.Event, propName string) string {
-	prop := ic.Props.Get(propName)
-	if prop == nil {
-		return ""
-	}
-	return prop.Value
-}
+func getStartEndForDate(t time.Time) (time.Time, time.Time) {
+	y, m, d := t.Date()
+	sT := time.Date(y, m, d, 0, 0, 0, 0, t.Location())
+	eT := time.Date(y, m, d, 23, 59, 59, 0, t.Location())
 
-func ParseDateTime(val string) time.Time {
-	// Quick fix because PRs to dateparse are pointless:
-	// https://github.com/araddon/dateparse/pulls?q=is%3Aopen+is%3Apr
-	dtf := regexp.MustCompile(
-		`([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})`)
-	val = dtf.ReplaceAllString(val, "$1-$2-$3 $4:$5:$6")
-
-	if dt, err := dateparse.ParseAny(val); err == nil {
-		return dt
-	}
-	return time.Time{}
+	return sT, eT
 }

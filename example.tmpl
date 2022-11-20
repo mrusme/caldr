@@ -1,3 +1,5 @@
-{{ GetDateTimeStart . "2006-01-02 15:04" }}: {{ GetSummary (.) }}
-{{ GetDescription . }}
+{{ range $event := . }}
+{{ $event.StartsAt.Format "2006-01-02 15:04" }}: {{ $event.Name }}
+{{ $event.Description }}
+{{ end }}
 
