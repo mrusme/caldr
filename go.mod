@@ -3,6 +3,7 @@ module github.com/mrusme/caldr
 go 1.19
 
 require (
+	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
 	github.com/emersion/go-ical v0.0.0-20220601085725-0864dccc089f // indirect
 	github.com/emersion/go-webdav v0.3.1 // indirect
 	github.com/teambition/rrule-go v1.8.1 // indirect

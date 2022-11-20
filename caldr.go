@@ -5,7 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
+	"regexp"
+	"text/template"
 
+	"github.com/araddon/dateparse"
 	"github.com/emersion/go-ical"
 	"github.com/mrusme/caldr/dav"
 	"github.com/mrusme/caldr/store"
@@ -108,25 +112,38 @@ func main() {
 		}
 	}
 
-	// var t *template.Template
-	// if len(caldrTmpl) > 0 && outputJson == false {
-	// 	t = template.Must(template.New("caldr").Funcs(template.FuncMap{
-	// 		"RenderPhoto": func(photo string) string {
-	// 			return RenderPhoto(photo)
-	// 		},
-	// 		"RenderAddress": func(address string) string {
-	// 			return RenderAddress(address)
-	// 		},
-	// 		"RenderBirthdate": func(dt string) string {
-	// 			return RenderBirthdate(dt)
-	// 		},
-	// 	}).ParseFiles(caldrTmpl))
-	// }
+	var t *template.Template
+	if len(caldrTmpl) > 0 && outputJson == false {
+		t = template.Must(template.New("caldr").Funcs(template.FuncMap{
+			"GetSummary": func(ic ical.Event) string {
+				return ic.Props.Get(ical.PropSummary).Value
+			},
+			"GetDescription": func(ic ical.Event) string {
+				return ic.Props.Get(ical.PropDescription).Value
+			},
+			"GetDateTimeStart": func(ic ical.Event, frmt string) string {
+				val := ic.Props.Get(ical.PropDateTimeStart).Value
+				return ParseDateTime(val, frmt)
+			},
+			"GetDateTimeEnd": func(ic ical.Event, frmt string) string {
+				val := ic.Props.Get(ical.PropDateTimeEnd).Value
+				return ParseDateTime(val, frmt)
+			},
+			"GetDateTimeStamp": func(ic ical.Event, frmt string) string {
+				val := ic.Props.Get(ical.PropDateTimeStamp).Value
+				return ParseDateTime(val, frmt)
+			},
+			"GetTimezone": func(ic ical.Event) string {
+				return ic.Props.Get(ical.PropTimezoneID).Value
+			},
+			"GetURL": func(ic ical.Event) string {
+				return ic.Props.Get(ical.PropURL).Value
+			},
+		}).ParseFiles(caldrTmpl))
+	}
 
-	// var foundIcs []icard.Card
-	// var foundBdays []time.Time
 	// var today time.Time = time.Now()
-	//
+
 	foundIcs, err := db.List()
 	if err != nil {
 		fmt.Printf("%s\n", err)
@@ -134,9 +151,6 @@ func main() {
 	}
 
 	for _, ic := range foundIcs {
-		// 	photo := ic.PreferredValue(icard.FieldPhoto)
-		// 	photoRender := RenderPhoto(photo)
-		//
 		if outputJson == true {
 			b, err := json.MarshalIndent(ic, "", "  ")
 			if err != nil {
@@ -146,17 +160,30 @@ func main() {
 
 			fmt.Printf(string(b))
 		} else {
-			// 		if len(caldrTmpl) > 0 {
-			// 			err := t.ExecuteTemplate(os.Stdout, path.Base(caldrTmpl), ic)
-			// 			if err != nil {
-			// 				fmt.Printf("%s\n", err)
-			// 				os.Exit(1)
-			// 			}
-			// 		} else {
-			fmt.Printf("%+v\n", ic.Props.Get(ical.PropSummary).Value)
-			// 		}
+			if len(caldrTmpl) > 0 {
+				err := t.ExecuteTemplate(os.Stdout, path.Base(caldrTmpl), ic)
+				if err != nil {
+					fmt.Printf("%s\n", err)
+					os.Exit(1)
+				}
+			} else {
+				fmt.Printf("%+v\n", ic.Props.Get(ical.PropSummary).Value)
+			}
 		}
 	}
 
 	os.Exit(0)
+}
+
+func ParseDateTime(val string, frmt string) string {
+	// Quick fix because PRs to dateparse are pointless:
+	// https://github.com/araddon/dateparse/pulls?q=is%3Aopen+is%3Apr
+	dtf := regexp.MustCompile(
+		`([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})`)
+	val = dtf.ReplaceAllString(val, "$1-$2-$3 $4:$5:$6")
+
+	if dt, err := dateparse.ParseAny(val); err == nil {
+		return dt.Format(frmt)
+	}
+	return val
 }
