@@ -65,6 +65,22 @@ caldr -j
 Find more flags and info with `caldr --help`.
 
 
+## Templating
+
+You can customize the regular output using templating. The template can either
+be passed using the `--template <file>` flag or by exporting `CALDR_TEMPLATE` 
+in the in the environment.
+
+The templating format is the [Go standard `text/template`][1] format.
+
+Available property names that are available can be found by checking the 
+`CalEvent` struct in `store/store.go`.
+
+An example template can be found [here][2]. To make use of the template, you can
+copy it to e.g. `~/.config/caldr.tmpl` and have
+`CALDR_TEMPLATE=~/.config/caldr.tmpl` exported in your `.zshrc`/`.bashrc`/etc.
+
+
 ## FAQ
 
 - Q: Does `caldr` write/modify any contact information?
@@ -74,9 +90,13 @@ Find more flags and info with `caldr --help`.
   A: Nope, as of right now `caldr` only supports CalDAV servers to sync with.
 - Q: Does it support HTTP Digest auth?
   A: Nope, only HTTP Basic auth.
+- Q: The `text/template` stuff doesn't work for me, can I make `caldr` output
+     contact data differently?
+  A: Yes, you can use the `-j` flag and have it output pure JSON, which you can
+     then process using e.g. [`jq`][4]. 
 
 [1]: https://pkg.go.dev/text/template
 [2]: example.tmpl
-[3]: https://pkg.go.dev/github.com/emersion/go-vcard#Card
+
 [4]: https://stedolan.github.io/jq/
 
