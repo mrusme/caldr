@@ -74,7 +74,7 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 						return true
 					}
 
-					for _, tS := range rr.All() {
+					for _, tS := range rr.Between(startT, endT, true) {
 						tE := ParseDateTime(
 							GetPropValueSafe(&ic, ical.PropDateTimeEnd),
 						)
