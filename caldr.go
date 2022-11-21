@@ -160,7 +160,12 @@ func main() {
 				os.Exit(1)
 			}
 		} else {
-			// fmt.Printf("%+v\n", ic.Props.Get(ical.PropSummary).Value)
+			for _, calEvent := range calEvents {
+				fmt.Printf("%s: %s\n",
+					calEvent.StartsAt.Format("2006-01-02 15:04:05"),
+					calEvent.Name,
+				)
+			}
 		}
 	}
 
