@@ -2,8 +2,8 @@
 {{ $date }}
 
 {{- range $event := $events }}
-  {{ $event.Name }}
-{{ if $event.Description }}> {{ $event.Description }}{{ end }}
+- {{ $event.Name }}
+{{ if $event.Description }}  {{ $event.Description }}{{ end }}
 {{- end -}}
 {{- end }}
 
