@@ -114,7 +114,18 @@ func main() {
 
 	var t *template.Template
 	if len(caldrTmpl) > 0 && outputJson == false {
-		t = template.Must(template.New("caldr").Funcs(template.FuncMap{}).ParseFiles(caldrTmpl))
+		t = template.Must(template.New("caldr").Funcs(template.FuncMap{
+			"SplitByDate": func(calEvents []store.CalEvent) map[string][]store.CalEvent {
+				var byDate map[string][]store.CalEvent = make(map[string][]store.CalEvent)
+
+				for i := 0; i < len(calEvents); i++ {
+					date := calEvents[i].StartsAt.Format("2006-01-02")
+					byDate[date] = append(byDate[date], calEvents[i])
+				}
+
+				return byDate
+			},
+		}).ParseFiles(caldrTmpl))
 	}
 
 	sT, eT, err := getStartEndByArgs(args)

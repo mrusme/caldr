@@ -79,7 +79,8 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 							GetPropValueSafe(&ic, ical.PropDateTimeEnd),
 						)
 
-						if tS.After(startT) && tS.Before(endT) {
+						if tS.After(startT) && tS.Before(endT) ||
+							tE.After(startT) && tE.Before(endT) {
 							calEvents = append(calEvents, CalEvent{
 								Name: GetPropValueSafe(&ic, ical.PropSummary),
 								Description: appendNewLine(
@@ -96,7 +97,8 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 					tS := ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeStart))
 					tE := ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeEnd))
 
-					if tS.After(startT) && tS.Before(endT) {
+					if tS.After(startT) && tS.Before(endT) ||
+						tE.After(startT) && tE.Before(endT) {
 						calEvents = append(calEvents, CalEvent{
 							Name: GetPropValueSafe(&ic, ical.PropSummary),
 							Description: appendNewLine(

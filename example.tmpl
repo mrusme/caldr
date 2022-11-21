@@ -1,5 +1,9 @@
-{{- range $event := . -}}
-{{ $event.StartsAt.Format "2006-01-02 15:04" }}: {{ $event.Name }}
+{{ range $date, $events := (SplitByDate . ) }}
+{{ $date }}
+
+{{- range $event := $events }}
+  {{ $event.Name }}
 {{ if $event.Description }}> {{ $event.Description }}{{ end }}
 {{- end -}}
+{{- end }}
 
