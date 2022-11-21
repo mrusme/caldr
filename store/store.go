@@ -46,16 +46,27 @@ func (s *Store) Close() {
 }
 
 func (s *Store) Upsert(ics []ical.Event) error {
+
 	err := s.db.Update(func(tx *buntdb.Tx) error {
+		var upsertedIDs []string
 		for _, ic := range ics {
 			mic, err := json.Marshal(ic)
 			if err != nil {
 				return err
 			}
-			tx.Set(ic.Props.Get(ical.PropUID).Value, string(mic), nil)
+			id := ic.Props.Get(ical.PropUID).Value
+			tx.Set(id, string(mic), nil)
+			upsertedIDs = append(upsertedIDs, id)
 		}
+
+		syncedIDs, err := json.Marshal(upsertedIDs)
+		if err != nil {
+			return err
+		}
+		tx.Set("syncedIDs", string(syncedIDs), nil)
 		return nil
 	})
+
 	return err
 }
 
@@ -63,15 +74,28 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 	var calEvents []CalEvent
 
 	err := s.db.View(func(tx *buntdb.Tx) error {
-		return tx.Ascend(ical.PropDateTimeStart, func(k, v string) bool {
+		syncedIDsJSON, err := tx.Get("syncedIDs", true)
+		if err != nil {
+			return err
+		}
+
+		var syncedIDs []string
+		if err := json.Unmarshal([]byte(syncedIDsJSON), &syncedIDs); err != nil {
+			return err
+		}
+		for _, syncedID := range syncedIDs {
 			var ic ical.Event
+			v, err := tx.Get(syncedID, true)
+			if err != nil {
+				return err
+			}
 			if json.Unmarshal([]byte(v), &ic) == nil {
 				recurrence := GetPropValueSafe(&ic, ical.PropRecurrenceRule)
 				if recurrence != "" {
 					rr, err := rrule.StrToRRule(recurrence)
 					if err != nil {
 						fmt.Printf("Error: %s\n", err)
-						return true
+						return nil
 					}
 
 					for _, tS := range rr.Between(startT, endT, true) {
@@ -79,8 +103,10 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 							GetPropValueSafe(&ic, ical.PropDateTimeEnd),
 						)
 
-						if tS.After(startT) && tS.Before(endT) ||
-							tE.After(startT) && tE.Before(endT) {
+						if ((tS.After(startT) || tS == startT) &&
+							(tS.Before(endT) || tS == endT)) ||
+							((tE.After(startT) || tE == startT) &&
+								(tE.Before(endT) || tE == endT)) {
 							calEvents = append(calEvents, CalEvent{
 								Name: GetPropValueSafe(&ic, ical.PropSummary),
 								Description: appendNewLine(
@@ -97,8 +123,10 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 					tS := ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeStart))
 					tE := ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeEnd))
 
-					if tS.After(startT) && tS.Before(endT) ||
-						tE.After(startT) && tE.Before(endT) {
+					if ((tS.After(startT) || tS.Equal(startT)) &&
+						(tS.Before(endT) || tS.Equal(endT))) ||
+						((tE.After(startT) || tE.Equal(startT)) &&
+							(tE.Before(endT) || tE.Equal(endT))) {
 						calEvents = append(calEvents, CalEvent{
 							Name: GetPropValueSafe(&ic, ical.PropSummary),
 							Description: appendNewLine(
@@ -113,8 +141,9 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 				}
 
 			}
-			return true
-		})
+		}
+		return nil
+
 	})
 
 	return calEvents, err
