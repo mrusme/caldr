@@ -103,7 +103,6 @@ func main() {
 		}
 
 		paths := cd.GetAddressBookPaths()
-		fmt.Println(paths)
 		ics := cd.GetEventsInCalendar(paths[0])
 
 		err = db.Upsert(ics)

@@ -17,6 +17,8 @@ type CalEvent struct {
 	Description string
 	StartsAt    time.Time
 	EndsAt      time.Time
+	Status      string
+	Location    string
 }
 
 type Store struct {
@@ -67,37 +69,43 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 				recurrence := GetPropValueSafe(&ic, ical.PropRecurrenceRule)
 				if recurrence != "" {
 					rr, err := rrule.StrToRRule(recurrence)
-					if err == nil {
-						rr.DTStart(ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeStart)))
-						rr.Until(endT)
-						for _, t := range rr.All() {
-							if t.After(startT) && t.Before(endT) {
-								calEvents = append(calEvents, CalEvent{
-									Name: GetPropValueSafe(&ic, ical.PropSummary),
-									Description: appendNewLine(
-										GetPropValueSafe(&ic, ical.PropDescription),
-									),
-									StartsAt: t,
-									EndsAt: ParseDateTime(
-										GetPropValueSafe(&ic, ical.PropDateTimeEnd),
-									),
-								})
-							}
+					if err != nil {
+						fmt.Printf("Error: %s\n", err)
+						return true
+					}
+
+					for _, tS := range rr.All() {
+						tE := ParseDateTime(
+							GetPropValueSafe(&ic, ical.PropDateTimeEnd),
+						)
+
+						if tS.After(startT) && tS.Before(endT) {
+							calEvents = append(calEvents, CalEvent{
+								Name: GetPropValueSafe(&ic, ical.PropSummary),
+								Description: appendNewLine(
+									GetPropValueSafe(&ic, ical.PropDescription),
+								),
+								StartsAt: tS,
+								EndsAt:   tE,
+								Status:   GetPropValueSafe(&ic, ical.PropStatus),
+								Location: GetPropValueSafe(&ic, ical.PropLocation),
+							})
 						}
 					}
 				} else {
-					t := ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeStart))
+					tS := ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeStart))
+					tE := ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeEnd))
 
-					if t.After(startT) && t.Before(endT) {
+					if tS.After(startT) && tS.Before(endT) {
 						calEvents = append(calEvents, CalEvent{
 							Name: GetPropValueSafe(&ic, ical.PropSummary),
 							Description: appendNewLine(
 								GetPropValueSafe(&ic, ical.PropDescription),
 							),
-							StartsAt: t,
-							EndsAt: ParseDateTime(
-								GetPropValueSafe(&ic, ical.PropDateTimeEnd),
-							),
+							StartsAt: tS,
+							EndsAt:   tE,
+							Status:   GetPropValueSafe(&ic, ical.PropStatus),
+							Location: GetPropValueSafe(&ic, ical.PropLocation),
 						})
 					}
 				}
