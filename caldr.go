@@ -25,7 +25,6 @@ func main() {
 	var caldrTmpl string
 
 	var refresh bool
-	var birthdays bool
 	var outputJson bool
 
 	flag.StringVar(
@@ -66,17 +65,30 @@ func main() {
 		"Refresh local icard database",
 	)
 	flag.BoolVar(
-		&birthdays,
-		"birthdays",
-		false,
-		"List contacts that have their birthday today",
-	)
-	flag.BoolVar(
 		&outputJson,
 		"j",
 		false,
 		"Output JSON",
 	)
+
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(),
+			"usage: %s [flags] [query]\n\n",
+			os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(),
+			"Flags:\n")
+		flag.PrintDefaults()
+		fmt.Fprintf(flag.CommandLine.Output(),
+			"\nQuery:\n")
+		fmt.Fprintf(flag.CommandLine.Output(),
+			"  today\t\t\tShow today's entries\n")
+		fmt.Fprintf(flag.CommandLine.Output(),
+			"  tomorrow\t\tShow tomorrow's entries\n")
+		fmt.Fprintf(flag.CommandLine.Output(),
+			"  in 3 days\t\tShow entries in 3 days\n")
+		fmt.Fprintf(flag.CommandLine.Output(),
+			"  in 2 months\t\tShow entries in 2 months\n")
+	}
 
 	flag.Parse()
 
