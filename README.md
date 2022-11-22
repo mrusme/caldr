@@ -81,6 +81,13 @@ copy it to e.g. `~/.config/caldr.tmpl` and have
 `CALDR_TEMPLATE=~/.config/caldr.tmpl` exported in your `.zshrc`/`.bashrc`/etc.
 
 
+## Notifications
+
+Check my [dotfiles][5], especially [this script][6] for how to get notifications
+for events. You could either run this script on login or periodically as a cron 
+job.
+
+
 ## FAQ
 
 - Q: Does `caldr` write/modify any contact information?
@@ -99,4 +106,5 @@ copy it to e.g. `~/.config/caldr.tmpl` and have
 [2]: example.tmpl
 
 [4]: https://stedolan.github.io/jq/
-
+[5]: https://github.com/mrusme/dotfiles
+[6]: https://github.com/mrusme/dotfiles/blob/master/usr/local/bin/calendar-notifications
