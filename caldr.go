@@ -88,6 +88,8 @@ func main() {
 			"  in 3 days\t\tShow entries in 3 days\n")
 		fmt.Fprintf(flag.CommandLine.Output(),
 			"  in 2 months\t\tShow entries in 2 months\n")
+		fmt.Fprintf(flag.CommandLine.Output(),
+			"  next 5 days\t\tShow entries in the next 5 days\n")
 	}
 
 	flag.Parse()
@@ -191,19 +193,19 @@ func getStartEndByArgs(args []string) (time.Time, time.Time, error) {
 	var eT time.Time
 
 	if len(args) > 0 {
-		switch strings.ToLower(args[0]) {
+		firstArg := strings.ToLower(args[0])
+		switch firstArg {
 		case "today":
 			sT, eT = getStartEndForDate(today)
 		case "tomorrow":
 			sT, eT = getStartEndForDate(today.AddDate(0, 0, 1))
-		case "in":
+		case "in", "next":
 			if len(args) == 3 {
 				i, err := strconv.Atoi(args[1])
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
 				}
-
 				switch strings.ToLower(args[2]) {
 				case "day", "days":
 					sT, eT = getStartEndForDate(today.AddDate(0, 0, i))
@@ -213,6 +215,9 @@ func getStartEndByArgs(args []string) (time.Time, time.Time, error) {
 					sT, eT = getStartEndForDate(today.AddDate(0, i, 0))
 				case "year", "years":
 					sT, eT = getStartEndForDate(today.AddDate(i, 0, 0))
+				}
+				if firstArg == "next" {
+					sT, _ = getStartEndForDate(today)
 				}
 			}
 		}
