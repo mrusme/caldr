@@ -232,7 +232,6 @@ func getStartEndByArgs(args []string) (time.Time, time.Time, error) {
 func getStartEndForDate(t time.Time) (time.Time, time.Time) {
 	y, m, d := t.Date()
 	sT := time.Date(y, m, d, 0, 0, 0, 0, t.Location())
-	eT := time.Date(y, m, d, 23, 59, 59, 9999999999, t.Location())
-
+	eT := time.Date(y, m, d, 23, 59, 59, 999999999, t.Location())
 	return sT, eT
 }
