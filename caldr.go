@@ -12,6 +12,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mrusme/caldr/dav"
 	"github.com/mrusme/caldr/store"
 )
@@ -129,6 +130,12 @@ func main() {
 	var t *template.Template
 	if len(caldrTmpl) > 0 && outputJson == false {
 		t = template.Must(template.New("caldr").Funcs(template.FuncMap{
+			"Style": func() lipgloss.Style {
+				return lipgloss.NewStyle()
+			},
+			"Color": func(color string) lipgloss.Color {
+				return lipgloss.Color(color)
+			},
 			"SplitByDate": func(calEvents []store.CalEvent) map[string][]store.CalEvent {
 				var byDate map[string][]store.CalEvent = make(map[string][]store.CalEvent)
 

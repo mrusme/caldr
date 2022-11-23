@@ -1,9 +1,11 @@
+{{- $highlight := Style.Foreground (Color "1") -}}
+{{- $muted := Style.Foreground (Color "8") -}}
 {{ range $date, $events := (SplitByDate . ) }}
-{{ $date }}
+{{ $highlight.Render $date }}
 
 {{- range $event := $events }}
-- {{ $event.Name }}
-{{ if $event.Description }}  {{ $event.Description }}{{ end }}
+{{ $muted.Render "-" }} {{ $event.Name }}
+{{ if $event.Description }}  {{ $muted.Render $event.Description }}{{ end }}
 {{- end -}}
 {{- end }}
 
