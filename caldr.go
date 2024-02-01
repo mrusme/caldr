@@ -26,6 +26,11 @@ func main() {
 	var caldrDb string
 	var caldrTmpl string
 
+	var taskdLaunch bool
+	var taskdPort int
+	var taskdCertFile string
+	var taskdKeyFile string
+
 	var refresh bool
 	var outputJson bool
 
@@ -58,6 +63,32 @@ func main() {
 		"template",
 		os.Getenv("CALDR_TEMPLATE"),
 		"caldr template file",
+	)
+
+	flag.BoolVar(
+		&taskdLaunch,
+		"t",
+		false,
+		"Launch Taskd",
+	)
+	taskdPortEnv, _ := strconv.Atoi(os.Getenv("CALDR_TASKD_PORT"))
+	flag.IntVar(
+		&taskdPort,
+		"taskd-port",
+		taskdPortEnv,
+		"Taskd port",
+	)
+	flag.StringVar(
+		&taskdCertFile,
+		"taskd-cert-file",
+		os.Getenv("CALDR_TASKD_CERT_FILE"),
+		"Taskd cert file",
+	)
+	flag.StringVar(
+		&taskdKeyFile,
+		"taskd-key-file",
+		os.Getenv("CALDR_TASKD_KEY_FILE"),
+		"Taskd key file",
 	)
 
 	flag.BoolVar(
@@ -128,6 +159,20 @@ func main() {
 		}
 	}
 
+	if taskdLaunch == true {
+		td, err := taskd.New(taskdPort, taskdCertFile, taskdKeyFile)
+		if err != nil {
+			fmt.Print(err)
+			os.Exit(1)
+		}
+		err = td.Launch()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	var t *template.Template
 	if len(caldrTmpl) > 0 && outputJson == false {
 		t = template.Must(template.New("caldr").Funcs(template.FuncMap{
@@ -190,15 +235,6 @@ func main() {
 			}
 		}
 	}
-
-	td, err := taskd.New(4433, "crt.pem", "key.pem")
-	if err != nil {
-		fmt.Print(err)
-		os.Exit(1)
-	}
-	err = td.Launch()
-	fmt.Print(err)
-	fmt.Printf("%v", td)
 
 	os.Exit(0)
 }
