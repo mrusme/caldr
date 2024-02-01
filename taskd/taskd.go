@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"fmt"
+	"math"
 	"net"
 )
 
@@ -36,6 +37,9 @@ func Launch(port int, crt string, key string) (Taskd, error) {
 			fmt.Println("Accepted connection, forking ...")
 			go func(c net.Conn) {
 				defer c.Close()
+				var newmsg bool = true
+				var msgsize int64 = 0
+				var msglen int64 = 0
 
 				r := bufio.NewReader(conn)
 				for {
@@ -45,8 +49,20 @@ func Launch(port int, crt string, key string) (Taskd, error) {
 						return
 					}
 
-					fmt.Println(msg)
+					if newmsg {
+						msgsize = int64(msg[0])*int64(math.Pow(256, 3)) +
+							int64(msg[1])*int64(math.Pow(256, 2)) +
+							int64(msg[2])*int64(math.Pow(256, 1)) +
+							int64(msg[3])*int64(math.Pow(256, 0))
+						fmt.Printf("msgsize: %d\n", msgsize)
+						newmsg = false
+					}
+					fmt.Printf("%q", msg)
+					msglen += int64(len(msg))
 
+					if msglen == msgsize {
+						break
+					}
 				}
 
 				// var bla []byte
