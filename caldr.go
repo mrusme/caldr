@@ -191,7 +191,12 @@ func main() {
 		}
 	}
 
-	td, err := taskd.Launch(4433, "crt.pem", "key.pem")
+	td, err := taskd.New(4433, "crt.pem", "key.pem")
+	if err != nil {
+		fmt.Print(err)
+		os.Exit(1)
+	}
+	err = td.Launch()
 	fmt.Print(err)
 	fmt.Printf("%v", td)
 
