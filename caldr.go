@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"os"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -18,22 +18,21 @@ import (
 	"github.com/mrusme/caldr/taskd"
 )
 
-func main() {
-	var err error
-	var username string
-	var password string
-	var endpoint string
-	var caldrDb string
-	var caldrTmpl string
+var username string
+var password string
+var endpoint string
+var caldrDb string
+var caldrTmpl string
 
-	var taskdLaunch bool
-	var taskdPort int
-	var taskdCertFile string
-	var taskdKeyFile string
+var taskdLaunch bool
+var taskdPort int
+var taskdCertFile string
+var taskdKeyFile string
 
-	var refresh bool
-	var outputJson bool
+var doRefresh bool
+var outputJson bool
 
+func setFlags() []string {
 	flag.StringVar(
 		&username,
 		"carddav-username",
@@ -92,7 +91,7 @@ func main() {
 	)
 
 	flag.BoolVar(
-		&refresh,
+		&doRefresh,
 		"r",
 		false,
 		"Refresh local icard database",
@@ -127,7 +126,13 @@ func main() {
 
 	flag.Parse()
 
-	args := flag.Args()
+	return flag.Args()
+}
+
+func main() {
+	var err error
+
+	args := setFlags()
 
 	db, err := store.Open(caldrDb)
 	if err != nil {
@@ -136,24 +141,8 @@ func main() {
 	}
 	defer db.Close()
 
-	if refresh == true {
-		cd, err := dav.New(endpoint, username, password)
-		if err != nil {
-			fmt.Printf("%s\n", err)
-			os.Exit(1)
-		}
-
-		err = cd.RefreshCalendars()
-		if err != nil {
-			fmt.Printf("%s\n", err)
-			os.Exit(1)
-		}
-
-		paths := cd.GetAddressBookPaths()
-		ics := cd.GetEventsInCalendar(paths[0])
-
-		err = db.Upsert(ics)
-		if err != nil {
+	if doRefresh == true {
+		if err := refresh(db); err != nil {
 			fmt.Printf("%s\n", err)
 			os.Exit(1)
 		}
@@ -171,45 +160,52 @@ func main() {
 			os.Exit(1)
 		}
 		os.Exit(0)
+	} else {
+		sT, eT, err := getStartEndByArgs(args)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+			os.Exit(1)
+		}
+
+		calEvents, err := db.List(sT, eT)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+			os.Exit(1)
+		}
+
+		sort.Slice(calEvents, func(i, j int) bool {
+			return calEvents[i].StartsAt.Before(calEvents[j].StartsAt)
+		})
+
+		output(calEvents)
+		os.Exit(0)
+	}
+}
+
+func refresh(db *store.Store) error {
+	cd, err := dav.New(endpoint, username, password)
+	if err != nil {
+		return err
 	}
 
+	err = cd.RefreshCalendars()
+	if err != nil {
+		return err
+	}
+
+	paths := cd.GetAddressBookPaths()
+	ics := cd.GetEventsInCalendar(paths[0])
+
+	err = db.Upsert(ics)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func output(calEvents []store.CalEvent) {
 	var t *template.Template
-	if len(caldrTmpl) > 0 && outputJson == false {
-		t = template.Must(template.New("caldr").Funcs(template.FuncMap{
-			"Style": func() lipgloss.Style {
-				return lipgloss.NewStyle()
-			},
-			"Color": func(color string) lipgloss.Color {
-				return lipgloss.Color(color)
-			},
-			"SplitByDate": func(calEvents []store.CalEvent) map[string][]store.CalEvent {
-				var byDate map[string][]store.CalEvent = make(map[string][]store.CalEvent)
-
-				for i := 0; i < len(calEvents); i++ {
-					date := calEvents[i].StartsAt.Format("2006-01-02")
-					byDate[date] = append(byDate[date], calEvents[i])
-				}
-
-				return byDate
-			},
-		}).ParseFiles(caldrTmpl))
-	}
-
-	sT, eT, err := getStartEndByArgs(args)
-	if err != nil {
-		fmt.Printf("%s\n", err)
-		os.Exit(1)
-	}
-
-	calEvents, err := db.List(sT, eT)
-	if err != nil {
-		fmt.Printf("%s\n", err)
-		os.Exit(1)
-	}
-
-	sort.Slice(calEvents, func(i, j int) bool {
-		return calEvents[i].StartsAt.Before(calEvents[j].StartsAt)
-	})
 
 	if outputJson == true {
 		b, err := json.MarshalIndent(calEvents, "", "  ")
@@ -221,6 +217,24 @@ func main() {
 		fmt.Printf(string(b))
 	} else {
 		if len(caldrTmpl) > 0 {
+			t = template.Must(template.New("caldr").Funcs(template.FuncMap{
+				"Style": func() lipgloss.Style {
+					return lipgloss.NewStyle()
+				},
+				"Color": func(color string) lipgloss.Color {
+					return lipgloss.Color(color)
+				},
+				"SplitByDate": func(calEvents []store.CalEvent) map[string][]store.CalEvent {
+					var byDate map[string][]store.CalEvent = make(map[string][]store.CalEvent)
+
+					for i := 0; i < len(calEvents); i++ {
+						date := calEvents[i].StartsAt.Format("2006-01-02")
+						byDate[date] = append(byDate[date], calEvents[i])
+					}
+
+					return byDate
+				},
+			}).ParseFiles(caldrTmpl))
 			err := t.ExecuteTemplate(os.Stdout, path.Base(caldrTmpl), calEvents)
 			if err != nil {
 				fmt.Printf("%s\n", err)
@@ -235,8 +249,6 @@ func main() {
 			}
 		}
 	}
-
-	os.Exit(0)
 }
 
 func taskdProcessor(newSyncID string, msg taskd.Message) (taskd.Message, error) {
