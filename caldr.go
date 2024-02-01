@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mrusme/caldr/dav"
 	"github.com/mrusme/caldr/store"
+	"github.com/mrusme/caldr/taskd"
 )
 
 func main() {
@@ -189,6 +190,10 @@ func main() {
 			}
 		}
 	}
+
+	td, err := taskd.Launch(4433, "crt.pem", "key.pem")
+	fmt.Print(err)
+	fmt.Printf("%v", td)
 
 	os.Exit(0)
 }
