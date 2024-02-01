@@ -7,6 +7,8 @@ import (
 	"math"
 	"net"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 type Taskd struct {
@@ -80,6 +82,12 @@ func Launch(port int, crt string, key string) (Taskd, error) {
 					}
 				}
 
+				syncId, err := uuid.NewRandom()
+				if err != nil {
+					// TODO: Handle
+					fmt.Println(err)
+				}
+
 				resp := new(strings.Builder)
 				resp.WriteString(
 					"client: taskd 1.0.0\n" +
@@ -88,17 +96,19 @@ func Launch(port int, crt string, key string) (Taskd, error) {
 						"code: 200\n" +
 						"status: Ok\n" +
 						"\n" +
-						"uuid" +
+						syncId.String() + "\n" +
 						"\n" +
 						"\n")
 
-				_, err := conn.Write(append(
+				_, err = conn.Write(append(
 					decimalToBytes(resp.Len()+4),
 					[]byte(resp.String())...,
 				))
 				if err != nil {
 					fmt.Println(err)
 				}
+
+				fmt.Printf("\n\nSent response with sync ID %s\n", syncId.String())
 			}(conn)
 		}
 	}
