@@ -55,69 +55,82 @@ func Launch(port int, crt string, key string) (Taskd, error) {
 			fmt.Print(err)
 		} else {
 			fmt.Println("Accepted connection, forking ...")
-			go func(c net.Conn) {
-				defer c.Close()
-				var newmsg bool = true
-				var msgsize int = 0
-				var msglen int = 0
-				var msgbuf []string
-
-				r := bufio.NewReader(conn)
-				for {
-					msg, err := r.ReadString('\n')
-					if err != nil {
-						fmt.Println(err)
-						return
-					}
-
-					if newmsg {
-						msgsize = bytesToDecimal([]byte(msg[:4]))
-						fmt.Printf("msgsize: %d\n", msgsize)
-						newmsg = false
-						msgbuf = append(msgbuf, strings.TrimSuffix(msg[4:], "\n"))
-					} else {
-						msgbuf = append(msgbuf, strings.TrimSuffix(msg, "\n"))
-					}
-					msglen += int(len(msg))
-
-					fmt.Printf("%q\n", msgbuf[len(msgbuf)-1])
-
-					if msglen == msgsize {
-						newmsg = true
-						break
-					}
-				}
-
-				syncId, err := uuid.NewRandom()
-				if err != nil {
-					// TODO: Handle
-					fmt.Println(err)
-				}
-
-				resp := new(strings.Builder)
-				resp.WriteString(
-					"client: taskd 1.0.0\n" +
-						"type: response\n" +
-						"protocol: v1\n" +
-						"code: 200\n" +
-						"status: Ok\n" +
-						"\n" +
-						syncId.String() + "\n" +
-						"\n" +
-						"\n")
-
-				_, err = conn.Write(append(
-					decimalToBytes(resp.Len()+4),
-					[]byte(resp.String())...,
-				))
-				if err != nil {
-					fmt.Println(err)
-				}
-
-				fmt.Printf("\n\nSent response with sync ID %s\n\n", syncId.String())
-			}(conn)
+			go Handle(conn)
 		}
 	}
 
 	return t, nil
+}
+
+func Handle(c net.Conn) {
+	defer c.Close()
+
+	r := bufio.NewReader(c)
+	msgbuf, err := ReadLoop(r)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	syncId, err := uuid.NewRandom()
+	if err != nil {
+		// TODO: Handle
+		fmt.Println(err)
+	}
+
+	// TODO: Process msgbuf
+
+	resp := new(strings.Builder)
+	resp.WriteString(
+		"client: taskd 1.0.0\n" +
+			"type: response\n" +
+			"protocol: v1\n" +
+			"code: 200\n" +
+			"status: Ok\n" +
+			"\n" +
+			syncId.String() + "\n" +
+			"\n" +
+			"\n")
+
+	_, err = c.Write(append(
+		decimalToBytes(resp.Len()+4),
+		[]byte(resp.String())...,
+	))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Printf("\n\nSent response with sync ID %s\n\n", syncId.String())
+}
+
+func ReadLoop(r *bufio.Reader) ([]string, error) {
+	var newmsg bool = true
+	var msgsize int = 0
+	var msglen int = 0
+	var msgbuf []string
+
+	for {
+		msg, err := r.ReadString('\n')
+		if err != nil {
+			return []string{}, err
+		}
+
+		if newmsg {
+			msgsize = bytesToDecimal([]byte(msg[:4]))
+			fmt.Printf("msgsize: %d\n", msgsize)
+			newmsg = false
+			msgbuf = append(msgbuf, strings.TrimSuffix(msg[4:], "\n"))
+		} else {
+			msgbuf = append(msgbuf, strings.TrimSuffix(msg, "\n"))
+		}
+		msglen += int(len(msg))
+
+		fmt.Printf("%q\n", msgbuf[len(msgbuf)-1])
+
+		if msglen == msgsize {
+			newmsg = true
+			break
+		}
+	}
+
+	return msgbuf, nil
 }
