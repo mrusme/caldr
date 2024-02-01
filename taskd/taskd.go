@@ -6,10 +6,28 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"strings"
 )
 
 type Taskd struct {
 	tlsConfig *tls.Config
+}
+
+func bytesToDecimal(bytes []byte) int {
+	return int(bytes[0])*int(math.Pow(256, 3)) +
+		int(bytes[1])*int(math.Pow(256, 2)) +
+		int(bytes[2])*int(math.Pow(256, 1)) +
+		int(bytes[3])*int(math.Pow(256, 0))
+}
+
+func decimalToBytes(decimal int) []byte {
+	byte1 := byte(decimal / (256 * 256 * 256))
+	byte2 := byte((decimal % (256 * 256 * 256)) / (256 * 256))
+	byte3 := byte(((decimal % (256 * 256 * 256)) % (256 * 256)) / 256)
+	byte4 := byte(((decimal % (256 * 256 * 256)) % (256 * 256)) % 256)
+
+	bytes := []byte{byte1, byte2, byte3, byte4}
+	return bytes
 }
 
 func Launch(port int, crt string, key string) (Taskd, error) {
@@ -38,8 +56,8 @@ func Launch(port int, crt string, key string) (Taskd, error) {
 			go func(c net.Conn) {
 				defer c.Close()
 				var newmsg bool = true
-				var msgsize int64 = 0
-				var msglen int64 = 0
+				var msgsize int = 0
+				var msglen int = 0
 
 				r := bufio.NewReader(conn)
 				for {
@@ -50,39 +68,37 @@ func Launch(port int, crt string, key string) (Taskd, error) {
 					}
 
 					if newmsg {
-						msgsize = int64(msg[0])*int64(math.Pow(256, 3)) +
-							int64(msg[1])*int64(math.Pow(256, 2)) +
-							int64(msg[2])*int64(math.Pow(256, 1)) +
-							int64(msg[3])*int64(math.Pow(256, 0))
+						msgsize = bytesToDecimal([]byte(msg[:4]))
 						fmt.Printf("msgsize: %d\n", msgsize)
 						newmsg = false
 					}
 					fmt.Printf("%q", msg)
-					msglen += int64(len(msg))
+					msglen += int(len(msg))
 
 					if msglen == msgsize {
 						break
 					}
 				}
 
-				// var bla []byte
-				// fmt.Println("Forked! Replying and listening ...")
-				// n, err := c.Read(bla)
-				// fmt.Print(n)
-				// fmt.Print(err)
-				//
-				// buf := new(strings.Builder)
-				// _, err = io.WriteString(c, "n\ntest\n")
-				// if err != nil {
-				// 	fmt.Print(err)
-				// }
-				// n2, err := io.Copy(buf, c)
-				// fmt.Printf("%d\n", n2)
-				// if err != nil {
-				// 	fmt.Print(err)
-				// } else {
-				// 	fmt.Println(buf.String())
-				// }
+				resp := new(strings.Builder)
+				resp.WriteString(
+					"client: taskd 1.0.0\n" +
+						"type: response\n" +
+						"protocol: v1\n" +
+						"code: 200\n" +
+						"status: Ok\n" +
+						"\n" +
+						"uuid" +
+						"\n" +
+						"\n")
+
+				_, err := conn.Write(append(
+					decimalToBytes(resp.Len()+4),
+					[]byte(resp.String())...,
+				))
+				if err != nil {
+					fmt.Println(err)
+				}
 			}(conn)
 		}
 	}
