@@ -1,6 +1,9 @@
 package taskd
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/google/uuid"
 )
 
@@ -16,4 +19,12 @@ type Task struct {
 	Status      string    `json:"status"`
 	UUID        uuid.UUID `json:"uuid"`
 	Tags        []string  `json:"tags"`
+}
+
+func (t *Task) String() string {
+	j, err := json.Marshal(t)
+	if err != nil {
+		return fmt.Sprintf("{\"error\": \"%s\"}", err)
+	}
+	return string(j)
 }

@@ -160,7 +160,7 @@ func main() {
 	}
 
 	if taskdLaunch == true {
-		td, err := taskd.New(taskdPort, taskdCertFile, taskdKeyFile)
+		td, err := taskd.New(taskdPort, taskdCertFile, taskdKeyFile, taskdProcessor)
 		if err != nil {
 			fmt.Print(err)
 			os.Exit(1)
@@ -237,6 +237,10 @@ func main() {
 	}
 
 	os.Exit(0)
+}
+
+func taskdProcessor(newSyncID string, msg taskd.Message) (taskd.Message, error) {
+	return taskd.Message{}, nil
 }
 
 func getStartEndByArgs(args []string) (time.Time, time.Time, error) {

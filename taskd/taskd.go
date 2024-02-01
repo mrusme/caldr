@@ -33,6 +33,8 @@ const (
 	STATUS_TOO_BIG     = 504
 )
 
+type Processor func(newSyncID string, msg Message) (Message, error)
+
 type Taskd struct {
 	port      int
 	certFile  string
@@ -40,6 +42,7 @@ type Taskd struct {
 	cert      tls.Certificate
 	tlsConfig *tls.Config
 	listener  net.Listener
+	processor Processor
 }
 
 func bytesToDecimal(bytes []byte) int {
@@ -59,7 +62,7 @@ func decimalToBytes(decimal int) []byte {
 	return bytes
 }
 
-func New(port int, certFile string, keyFile string) (Taskd, error) {
+func New(port int, certFile string, keyFile string, proc Processor) (Taskd, error) {
 	var td Taskd
 	var err error
 
@@ -67,6 +70,7 @@ func New(port int, certFile string, keyFile string) (Taskd, error) {
 	td.certFile = certFile
 	td.keyFile = keyFile
 	td.cert, err = tls.LoadX509KeyPair(td.certFile, td.keyFile)
+	td.processor = proc
 	if err != nil {
 		return td, err
 	}
@@ -105,27 +109,43 @@ func (td *Taskd) handle(c net.Conn) {
 	msg, err := td.readLoop(r)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 
-	syncId, err := uuid.NewRandom()
+	syncID, err := uuid.NewRandom()
 	if err != nil {
 		// TODO: Handle
 		fmt.Println(err)
+		return
 	}
 
-	// TODO: Process msg
 	m, err := td.convertMessage(msg)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	fmt.Printf("%#v\n", m)
 
-	err = td.respond(c, STATUS_SUCCESS, "Ok", syncId.String(), "")
+	nm, err := (td.processor)(syncID.String(), *m)
 	if err != nil {
-		fmt.Println(err)
+		err = td.respond(c, STATUS_ERROR, "error", m.SyncID, "")
+		if err != nil {
+			fmt.Println(err)
+		}
+		return
+	}
+	var payload string = ""
+	for _, task := range nm.Tasks {
+		payload += task.String() + "\n"
 	}
 
-	fmt.Printf("\n\nSent response with sync ID %s\n\n", syncId.String())
+	err = td.respond(c, STATUS_SUCCESS, "Ok", syncID.String(), "")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Printf("\n\nSent response with sync ID %s\n\n", syncID.String())
 }
 
 func (td *Taskd) readLoop(r *bufio.Reader) ([]string, error) {
@@ -161,7 +181,7 @@ func (td *Taskd) readLoop(r *bufio.Reader) ([]string, error) {
 	return msg, nil
 }
 
-func (td *Taskd) respond(conn net.Conn, code int, status string, syncId string, payload string) error {
+func (td *Taskd) respond(conn net.Conn, code int, status string, syncID string, payload string) error {
 	resp := new(strings.Builder)
 	_, err := resp.WriteString(fmt.Sprintf(
 		"client: taskd 1.0.0\n"+
@@ -173,7 +193,7 @@ func (td *Taskd) respond(conn net.Conn, code int, status string, syncId string, 
 			"%s\n"+
 			"%s"+
 			"\n"+
-			"\n", code, status, syncId, payload))
+			"\n", code, status, syncID, payload))
 	if err != nil {
 		return err
 	}
