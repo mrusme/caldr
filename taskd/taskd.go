@@ -60,6 +60,7 @@ func Launch(port int, crt string, key string) (Taskd, error) {
 				var newmsg bool = true
 				var msgsize int = 0
 				var msglen int = 0
+				var msgbuf []string
 
 				r := bufio.NewReader(conn)
 				for {
@@ -73,11 +74,16 @@ func Launch(port int, crt string, key string) (Taskd, error) {
 						msgsize = bytesToDecimal([]byte(msg[:4]))
 						fmt.Printf("msgsize: %d\n", msgsize)
 						newmsg = false
+						msgbuf = append(msgbuf, strings.TrimSuffix(msg[4:], "\n"))
+					} else {
+						msgbuf = append(msgbuf, strings.TrimSuffix(msg, "\n"))
 					}
-					fmt.Printf("%q", msg)
 					msglen += int(len(msg))
 
+					fmt.Printf("%q\n", msgbuf[len(msgbuf)-1])
+
 					if msglen == msgsize {
+						newmsg = true
 						break
 					}
 				}
@@ -108,7 +114,7 @@ func Launch(port int, crt string, key string) (Taskd, error) {
 					fmt.Println(err)
 				}
 
-				fmt.Printf("\n\nSent response with sync ID %s\n", syncId.String())
+				fmt.Printf("\n\nSent response with sync ID %s\n\n", syncId.String())
 			}(conn)
 		}
 	}
