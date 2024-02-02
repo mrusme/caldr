@@ -1,5 +1,33 @@
 package taskd
 
+/*
+
+## Useful info:
+
+- https://web.archive.org/web/20220309100734/https://taskwarrior.org/docs/design/request.html
+- https://web.archive.org/web/20220309070454/https://taskwarrior.org/docs/design/protocol.html
+
+## Testing
+
+Run `socat` as test "server" to show what the client sends:
+
+```sh
+socat OPENSSL-LISTEN:4433,reuseaddr\
+,cert=$HOME/.task/mrus.cert.pem\
+,cafile=$HOME/.task/ca.cert.pem\
+,key=$HOME/.task/mrus.key.pem\
+,verify=0 STDOUT
+```
+
+Configure `~/.config/task/taskrc` to connect to localhost:4433 and run the
+client:
+
+```sh
+task sync init --debug
+```
+
+*/
+
 import (
 	"bufio"
 	"crypto/tls"
