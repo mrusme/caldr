@@ -103,21 +103,49 @@ func (dav *DAV) GetEventsInCalendar(path string) []ical.Event {
 		}
 	}
 
-	dav.GetTodosInCalendar(path)
-
 	return events
 }
 
-func (dav *DAV) GetTodosInCalendar(path string) []*ical.Props {
-	var todos []*ical.Props
+// "CATEGORIES"
+// --> "マリウス"
+// "COMPLETED"
+// --> "20240114T141521Z"
+// "CREATED"
+// --> "20240112T185004Z"
+// "DTSTAMP"
+// --> "20240114T141731Z"
+// "DUE"
+// --> ""
+// "TZID"
+// --> "20240112T200001"
+// "GEO"
+// --> "5.01084248643789;-69.48780557866111"
+// "LAST-MODIFIED"
+// --> "20240114T141652Z"
+// "PERCENT-COMPLETE"
+// --> "100"
+// "PRIORITY"
+// --> "9"
+// "SEQUENCE"
+// --> "1"
+// "STATUS"
+// --> "COMPLETED"
+// "SUMMARY"
+// --> "Take photos of this and that"
+// "UID"
+// --> "3807009628322705224"
+// "X-APPLE-SORT-ORDER"
+// --> "713117750"
+func (dav *DAV) GetTodosInCalendar(path string) []ical.Component {
+	var todos []ical.Component
 
 	fmt.Printf("%s\n", path)
 	if _, ok := dav.objects[path]; ok {
 		for i := 0; i < len(dav.objects[path]); i++ {
 			for j := 0; j < len(dav.objects[path][i].Data.Component.Children); j++ {
 				if dav.objects[path][i].Data.Component.Children[j].Name == "VTODO" {
-					fmt.Printf("%v\n\n", dav.objects[path][i].Data.Component.Children[j].Props)
-					todos = append(todos, &dav.objects[path][i].Data.Component.Children[j].Props)
+					fmt.Printf("%#v\n\n", dav.objects[path][i].Data.Component.Children[j].Props)
+					todos = append(todos, *dav.objects[path][i].Data.Component.Children[j])
 				}
 			}
 		}

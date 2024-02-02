@@ -45,8 +45,7 @@ func (s *Store) Close() {
 	s.db.Close()
 }
 
-func (s *Store) Upsert(ics []ical.Event) error {
-
+func (s *Store) UpsertEvents(ics []ical.Event) error {
 	err := s.db.Update(func(tx *buntdb.Tx) error {
 		var upsertedIDs []string
 		for _, ic := range ics {
@@ -70,7 +69,31 @@ func (s *Store) Upsert(ics []ical.Event) error {
 	return err
 }
 
-func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
+func (s *Store) UpsertTodos(ics []ical.Component) error {
+	err := s.db.Update(func(tx *buntdb.Tx) error {
+		var upsertedIDs []string
+		for _, ic := range ics {
+			mic, err := json.Marshal(ic)
+			if err != nil {
+				return err
+			}
+			id := ic.Props.Get(ical.PropUID).Value
+			tx.Set(id, string(mic), nil)
+			upsertedIDs = append(upsertedIDs, id)
+		}
+
+		syncedIDs, err := json.Marshal(upsertedIDs)
+		if err != nil {
+			return err
+		}
+		tx.Set("syncedIDs", string(syncedIDs), nil)
+		return nil
+	})
+
+	return err
+}
+
+func (s *Store) ListEvents(startT, endT time.Time) ([]CalEvent, error) {
 	var calEvents []CalEvent
 
 	err := s.db.View(func(tx *buntdb.Tx) error {
@@ -90,7 +113,7 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 				return err
 			}
 			if json.Unmarshal([]byte(v), &ic) == nil {
-				recurrence := GetPropValueSafe(&ic, ical.PropRecurrenceRule)
+				recurrence := GetPropValueSafe(&ic.Props, ical.PropRecurrenceRule)
 				if recurrence != "" {
 					rr, err := rrule.StrToRRule(recurrence)
 					if err != nil {
@@ -100,7 +123,7 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 
 					for _, tS := range rr.Between(startT, endT, true) {
 						tE := ParseDateTime(
-							GetPropValueSafe(&ic, ical.PropDateTimeEnd),
+							GetPropValueSafe(&ic.Props, ical.PropDateTimeEnd),
 						)
 
 						if ((tS.After(startT) || tS == startT) &&
@@ -108,34 +131,34 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 							((tE.After(startT) || tE == startT) &&
 								(tE.Before(endT) || tE == endT)) {
 							calEvents = append(calEvents, CalEvent{
-								Name: GetPropValueSafe(&ic, ical.PropSummary),
+								Name: GetPropValueSafe(&ic.Props, ical.PropSummary),
 								Description: appendNewLine(
-									GetPropValueSafe(&ic, ical.PropDescription),
+									GetPropValueSafe(&ic.Props, ical.PropDescription),
 								),
 								StartsAt: tS,
 								EndsAt:   tE,
-								Status:   GetPropValueSafe(&ic, ical.PropStatus),
-								Location: GetPropValueSafe(&ic, ical.PropLocation),
+								Status:   GetPropValueSafe(&ic.Props, ical.PropStatus),
+								Location: GetPropValueSafe(&ic.Props, ical.PropLocation),
 							})
 						}
 					}
 				} else {
-					tS := ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeStart))
-					tE := ParseDateTime(GetPropValueSafe(&ic, ical.PropDateTimeEnd))
+					tS := ParseDateTime(GetPropValueSafe(&ic.Props, ical.PropDateTimeStart))
+					tE := ParseDateTime(GetPropValueSafe(&ic.Props, ical.PropDateTimeEnd))
 
 					if ((tS.After(startT) || tS.Equal(startT)) &&
 						(tS.Before(endT) || tS.Equal(endT))) ||
 						((tE.After(startT) || tE.Equal(startT)) &&
 							(tE.Before(endT) || tE.Equal(endT))) {
 						calEvents = append(calEvents, CalEvent{
-							Name: GetPropValueSafe(&ic, ical.PropSummary),
+							Name: GetPropValueSafe(&ic.Props, ical.PropSummary),
 							Description: appendNewLine(
-								GetPropValueSafe(&ic, ical.PropDescription),
+								GetPropValueSafe(&ic.Props, ical.PropDescription),
 							),
 							StartsAt: tS,
 							EndsAt:   tE,
-							Status:   GetPropValueSafe(&ic, ical.PropStatus),
-							Location: GetPropValueSafe(&ic, ical.PropLocation),
+							Status:   GetPropValueSafe(&ic.Props, ical.PropStatus),
+							Location: GetPropValueSafe(&ic.Props, ical.PropLocation),
 						})
 					}
 				}
@@ -149,8 +172,38 @@ func (s *Store) List(startT, endT time.Time) ([]CalEvent, error) {
 	return calEvents, err
 }
 
-func GetPropValueSafe(ic *ical.Event, propName string) string {
-	prop := ic.Props.Get(propName)
+func (s *Store) ListTodos() ([]ical.Component, error) {
+	var todos []ical.Component
+
+	err := s.db.View(func(tx *buntdb.Tx) error {
+		syncedIDsJSON, err := tx.Get("syncedIDs", true)
+		if err != nil {
+			return err
+		}
+
+		var syncedIDs []string
+		if err := json.Unmarshal([]byte(syncedIDsJSON), &syncedIDs); err != nil {
+			return err
+		}
+		for _, syncedID := range syncedIDs {
+			var ic ical.Component
+			v, err := tx.Get(syncedID, true)
+			if err != nil {
+				return err
+			}
+			if json.Unmarshal([]byte(v), &ic) == nil {
+				todos = append(todos, ic)
+			}
+		}
+		return nil
+
+	})
+
+	return todos, err
+}
+
+func GetPropValueSafe(icp *ical.Props, propName string) string {
+	prop := icp.Get(propName)
 	if prop == nil {
 		return ""
 	}

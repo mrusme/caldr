@@ -141,7 +141,7 @@ func main() {
 	}
 
 	if taskdLaunch == true {
-		if err := runTaskd(); err != nil {
+		if err := runTaskd(db); err != nil {
 			fmt.Println(err)
 			os.Exit(0)
 		}
@@ -168,8 +168,13 @@ func refresh(db *store.Store) error {
 
 	paths := cd.GetAddressBookPaths()
 	ics := cd.GetEventsInCalendar(paths[0])
+	err = db.UpsertEvents(ics)
+	if err != nil {
+		return err
+	}
 
-	err = db.Upsert(ics)
+	todos := cd.GetTodosInCalendar(paths[0])
+	err = db.UpsertTodos(todos)
 	if err != nil {
 		return err
 	}

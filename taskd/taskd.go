@@ -134,12 +134,15 @@ func (td *Taskd) handle(c net.Conn) {
 		}
 		return
 	}
+
 	var payload string = ""
 	for _, task := range nm.Tasks {
 		payload += task.String() + "\n"
 	}
 
-	err = td.respond(c, STATUS_SUCCESS, "Ok", syncID.String(), "")
+	fmt.Printf("\n\nPayload:\n\n%#v\n\n", payload)
+
+	err = td.respond(c, STATUS_SUCCESS, "Ok", syncID.String(), payload)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -190,13 +193,14 @@ func (td *Taskd) respond(conn net.Conn, code int, status string, syncID string, 
 			"code: %d\n"+
 			"status: %s\n"+
 			"\n"+
-			"%s\n"+
 			"%s"+
-			"\n"+
-			"\n", code, status, syncID, payload))
+			"%s\n"+
+			"\n", code, status, payload, syncID))
 	if err != nil {
 		return err
 	}
+
+	fmt.Printf("\n%s\n", resp.String())
 
 	_, err = conn.Write(append(
 		decimalToBytes(resp.Len()+4),

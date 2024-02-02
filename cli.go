@@ -21,7 +21,7 @@ func runCLI(db *store.Store, args []string) error {
 		return err
 	}
 
-	calEvents, err := db.List(sT, eT)
+	calEvents, err := db.ListEvents(sT, eT)
 	if err != nil {
 		return err
 	}
